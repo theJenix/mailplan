@@ -61,14 +61,13 @@ def main():
         
         for rule in config.list_enabled_rules():
             select, search, action = config.get_rule_config(rule)
-            searchparts = search.split(",")
             # Load the action from the actions folder, and get the action function
             # to use later.
             exec('import actions.' + action)
             actionfn = eval('actions.' + action + '.action')
             # TODO: support multiple select mailboxes
             imap.select(select)
-            typ, msgnums = imap.search(None, *searchparts)
+            typ, msgnums = imap.search(None, '(%s)' % search)
             if typ == "OK":
                 for num in msgnums[0].split():
                     typ, data = imap.fetch(num, '(BODY.PEEK[HEADER] BODY.PEEK[TEXT])')
