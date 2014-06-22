@@ -19,8 +19,9 @@ def download(url, targetPath='.', fileName=None):
     r = urllib2.urlopen(urllib2.Request(url))
     try:
         fileName = fileName or getFileName(url,r)
+        expandedPath = os.path.expanduser(targetPath)
         print "Downloading file", fileName
-        with open(targetPath + '/' + fileName, 'wb') as f:
+        with open(expandedPath + '/' + fileName, 'wb') as f:
             shutil.copyfileobj(r,f)
     finally:
         r.close()

@@ -50,11 +50,11 @@ Each rule is defined by a set of properties, prefixed by a name.  In this exampl
 Actions are defined as .py files stored in the *actions* subfolder of MailPlan.  An action can be an arbitrary Python program; the only requirement is that the .py file define an *action* function as an entry point, e.g.:
 
 ```
-def action(header, message):
+def action(header, message, ops):
 	...
 ```
 
-This function can perform whatever action is required based on the header and message information.  It must return one of the following string values:
+This function can perform whatever action is required based on the header and message information.  It can use the *ops* parameter to perform IMAP operations on the message, such a copy, move, and delete.  The action function must return one of the following string values:
 
 * OK - The action was performed correctly and the system can proceed with further processing.
 * SKIP - The action was skipped, and the rest of the processing on this message should be skipped.
