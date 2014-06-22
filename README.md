@@ -1,7 +1,7 @@
 MailPlan
 ========
 
-*Note that this is **SUPER ALPHA** software.  This is the result of a few hours of hacking on a Saturday afternoon, mostly to prove the concept and address a very specific need I had.  I will continue to develop it into something more general purpose, but for now, caveat emptor.*
+_Note that this is **SUPER ALPHA** software.  This is the result of a few hours of hacking on a Saturday afternoon, mostly to prove the concept and address a very specific need I had.  I will continue to develop it into something more general purpose, but for now, caveat emptor._
 
 MailPlan is a command line mail rules engine written in Python.  MailPlan is not a full fledged email client, and it never will be; there's plenty of competition in that space.  Instead, MailPlan provides a way to define rules to select and perform actions on your emails.  Since the actions are written in Python, you can do pretty much anything you like to your emails, including parsing and automatically downloading linked files and moving or deleting the message itself.  You can even use MailPlan as a *mail delivery agent*, by defining an action that saves messages
 
