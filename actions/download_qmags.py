@@ -22,14 +22,23 @@ def action(header, message, ops):
         m = re.search('(http://[^"]*)[^>]*>(?=DOWNLOAD)', oneline)
 
     if not m:
-        m = re.search('(http://[^"]*)[^>]*>(?=Click here</a> to download)', oneline) #, re.DOTALL)
+        m = re.search('(http://[^"]*)[^>]*>(?=<b>DOWNLOAD)', oneline)
 
     if not m:
-        # Qmags PDF....http://"
-        pdfinx  = message.index('Qmags PDF')
-        ro = re.compile('(http://.+?)["|\s]')
-    
-        m = ro.search(message, pdfinx)
+        m = re.search('(http://[^"]*)[^>]*>(?=Click here</a> to download)', oneline) #, re.DOTALL)
+
+    try:
+        if not m:
+            # Qmags PDF....http://"
+            pdfinx  = message.index('Qmags PDF')
+            ro = re.compile('(http://.+?)["|\s]')
+            m = ro.search(message, pdfinx)
+    except ValueError:
+        m = None
+
+    if not m:
+        ops.move('Downloaded Qmags/Error')
+        return "SKIP"
 
     link = m.group(1)
     print "Opening link", link
