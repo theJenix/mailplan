@@ -1,0 +1,14 @@
+
+[accounts]
+enabled=primary
+
+primary.server=mail.server.com
+primary.username=me
+primary.password=mypass
+
+[rules]
+enabled=file
+
+file.select=INBOX
+file.search=FROM *@important.com
+file.action=file_important
