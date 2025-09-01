@@ -1,20 +1,22 @@
 
-import ConfigParser
+import sys
+import configparser
 import imaplib
 from util import *
 import os
 import re
+import email
 
 class MailPlanConfig:
 
     def __init__(self, filename):
-        self.config = ConfigParser.SafeConfigParser()
+        self.config = configparser.SafeConfigParser()
         expanded = os.path.expanduser(filename)
-        print "Opening config file %s (%s)" % (filename, expanded)
+        print("Opening config file %s (%s)" % (filename, expanded))
         if expanded in self.config.read(expanded):
-            print "Success!"
+            print("Success!")
         else:
-            print "Unable to open file"
+            print("Unable to open file")
 
     def list_enabled_accounts(self):
         v = self.config.get('accounts', 'enabled')
@@ -44,7 +46,8 @@ class MailPlanConfig:
         # TODO: support (search, [(action1, params1), (action2, params2), ...])
         select = self.config.get('rules', rule + '.select')
         search = self.config.get('rules', rule + '.search')
-        action = self.config.get('rules', rule + '.action') 
+        action = self.config.get('rules', rule + '.action')
+
         return (select, search, action)
 
 def load_config_file(filename):
@@ -52,11 +55,13 @@ def load_config_file(filename):
 
 class MessageOperations:
 
-    def __init__(self, imap, dirs, path, msgnum):
+    def __init__(self, imap: imaplib.IMAP4_SSL, dirs, path, msgnum, raw_header, raw_body):
         self.imap = imap
         self.dirs = dirs
         self.path = path
         self.msgnum = msgnum
+        self.raw_header = raw_header
+        self.raw_body = raw_body
 
     def copy(self, newpath, create=True):
         self.imap.select(self.path)
@@ -68,9 +73,10 @@ class MessageOperations:
         status, r = self.imap.copy(self.msgnum, newpath)
         newmo = None
         if status == "OK":
+            rstr = r[0].decode('utf-8')
             # OK ['[COPYUID 103 129044 1] (Success)']
-            m = re.search("(\d+)\]", r[0])
-            newmo = MessageOperations(self.imap, self.dirs, newpath, int(m.group(1)))
+            m = re.search("(\d+)\]", rstr)
+            newmo = MessageOperations(self.imap, self.dirs, newpath, int(m.group(1)), self.raw_header, self.raw_body)
         return newmo
 
     def delete(self):
@@ -78,16 +84,74 @@ class MessageOperations:
         self.imap.store(self.msgnum, '+FLAGS', '\\Deleted')
 
     def move(self, newpath, create=True):
-        
-        print "Moving message to ", newpath
-        newmo = self.copy(newpath, create)
-        if newmo:
-            self.delete()
+
+        print("Moving message to ", newpath)
+
+#        newmo = self.copy(newpath, create)
+#        if newmo:
+#            self.delete()
+#        return newmo
+
+        status, r = self.imap._simple_command('MOVE', self.msgnum, newpath)
+
+        newmo = None
+        if status == "OK":
+            rstr = r[0].decode('utf-8')
+            # OK ['[COPYUID 103 129044 1] (Success)']
+            m = re.search("(\d+)\]", rstr)
+            newmo = MessageOperations(self.imap, self.dirs, newpath, int(m.group(1)), self.raw_header, self.raw_body)
+        else:
+            print(status + ' ' + str(r))
         return newmo
 
 def filter_list(listitem):
     return [p for p in listitem if not p.startswith("(") and p != '"/"']
 
+def resolve_one(str, typ):
+    """
+        Parse, import, and evaluate the python function specified on a search or action line
+    """
+
+    parts = str.split(':', 1)
+    module = parts[0]
+
+    exec('import %s.%s' % (typ, module))
+
+    # If there are arguments, we assume the resolved module defines a make_ function
+    # which will return the resolved function
+    if len(parts) > 1:
+        return eval('%s.%s.make_%s(%s)' % (typ, module, module, parts[1]))
+    else:
+        return eval('%s.%s.%s' % (typ, module, module))
+
+def resolve(str, typ):
+    """
+        Resolve the action or search for a rule.  This could be a single function
+        or a function chain; this method will parse str to figure out which and to
+        resolve each part
+    """
+    if str.startswith('\n'):
+        # this is a chain; split by \n and resolve each part, then glue them together
+        # NOTE: skip the first one, which will be empty
+        parts = str.split('\n')[1:]
+        def compose(fn1, fn2):
+            def composed(*args):
+                res = fn1(*args)
+                if res == "OK":
+                    return fn2(*args)
+                else:
+                    return res
+            return composed
+        resolved = lambda *_: "OK"
+        for part in parts:
+            resolved = compose(resolved, resolve_one(part, typ))
+        return resolved
+
+    else:
+        return resolve_one(str, typ)
+
+    # Load the action from the actions folder, and get the action function
+    # to use later.
 def main():
 
     config = load_config_file("~/.mailplanrc")
@@ -98,25 +162,52 @@ def main():
 
 #        imaplist = imap.list()
 #        dirs = [' '.join([p.replace('"','') for p in filter_list(s.split(' '))]) for s in imaplist[1]]
-                                             
-      
+
+
  #       print imaplist[1]
   #      print dirs
    #     exit(1)
+        limit = 1
         for rule in config.list_enabled_rules():
             select, search, action = config.get_rule_config(rule)
-            # Load the action from the actions folder, and get the action function
-            # to use later.
-            exec('import actions.' + action)
-            actionfn = eval('actions.' + action + '.action')
+
+            # TODO: maybe we should resolve everything first and then run them
+            # doing this one at a time could cause issues with large rulesets in large inboxes
+            # where e.g. the definition of today changes in the course of running thru the
+            # rules; alternatively, for non-parameterzed functions, maybe cache the results
+            searchfn = resolve(search, 'search')
+            actionfn = resolve(action, 'actions')
             # TODO: support multiple select mailboxes
             imap.select(select)
-            typ, msgnums = imap.search(None, '(%s)' % search)
+            term = searchfn()
+            print("Searching in %s for %s" % (select, term))
+            # Special case for gmail search, which needs to be passed as a literal
+            if ('X-GM-RAW' in term):
+                term = term.replace('X-GM-RAW ', '')
+                imap.literal = term.encode('us-ascii')
+                typ, msgnums = imap.search(None, 'X-GM-RAW')
+                # imap.literal is consumed by imap.search
+            else:
+                typ, msgnums = imap.search(None, '(%s)' % term)
+
             if typ == "OK":
                 for num in reversed(msgnums[0].split()):
                     typ, data = imap.fetch(num, '(BODY.PEEK[HEADER] BODY.PEEK[TEXT])')
-                    print 'Processing message %s\n%s\n' % (num, data[0][1])
-                    actionfn(data[1][1], data[0][1], MessageOperations(imap, [], select, num))
+                    header = b''
+                    text = b''
+                    for response_part in data:
+                        if isinstance(response_part, tuple):
+                            part_str = response_part[0].decode('utf-8')
+                            if '[HEADER]' in part_str:
+                                header = response_part[1]
+                            if '[TEXT]' in part_str:
+                                text = response_part[1]
+
+                    # Parse the header + the text to get us a complete message
+                    message = email.message_from_bytes(header + text)
+                    print('Processing message %s\nDate: %s\nFrom: %s\nSubject: %s\n' % (num, message['date'], message['from'], message['subject']))
+                    actionfn(message, MessageOperations(imap, [], select, num, header, text))
+                    print('\n')
 
 if __name__ == "__main__":
     main()
