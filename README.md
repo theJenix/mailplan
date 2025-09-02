@@ -54,11 +54,12 @@ def action(header, message, ops):
 	...
 ```
 
-This function can perform whatever action is required based on the header and message information.  It can use the *ops* parameter to perform IMAP operations on the message, such a copy, move, and delete.  The action function must return one of the following string values:
+This function can perform whatever action is required based on the header and message information.  It can use the *ops* parameter to perform IMAP operations on the message, such as fetch, copy, move, and delete.  The action function must return one of the following string values:
 
 * OK - The action was performed correctly and the system can proceed with further processing.
 * SKIP - The action was skipped, and the rest of the processing on this message should be skipped.
 * ERROR - There was an error performing the action, and the appropriate information should be logged for analysis.
+* STOP - The action indicates that the rule should stop processing (i.e. a limit or stop condition was reached).
 
 # Future Plans
 
@@ -66,3 +67,4 @@ This function can perform whatever action is required based on the header and me
 * Define reusable set of actions, to use in composed action sequences
 * Multiple mailboxes per rule (currently only one mailbox is allowed in the select property)
 * Client side search validators
+* Full support for X-GM-RAW (currently supports single terms using the gmail: search but does not support composing search from individual clauses)

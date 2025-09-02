@@ -8,6 +8,8 @@ import tnefparse
 import re
 from email.iterators import _structure
 
+from .types import ActionResult
+
 debug_enabled = False
 def debug_out(msg: str):
     if debug_enabled:
@@ -239,8 +241,9 @@ def proceed_if_past_event_tnef(part):
 
     return "SKIP"
 
-def proceed_if_past_event(message, ops):
+def proceed_if_past_event(ops) -> ActionResult:
     print('proceed_if_past_event')
+    message = ops.fetch()
 
     if debug_enabled:
         _structure(message)
