@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from email.message import Message
 from typing import Optional
 from zoneinfo import ZoneInfo
 import base64

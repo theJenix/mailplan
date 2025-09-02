@@ -8,7 +8,7 @@
 
 import urllib2
 import re
-from util import download
+from common.util import download
 
 def action(header, message, ops):
 
