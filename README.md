@@ -41,16 +41,17 @@ The **[rules]** section contains your rules to run.  Like with accounts, the *en
 
 Each rule is defined by a set of properties, prefixed by a name.  In this example, the rule name is *file*, and the properties that must be defined are:
 
-* *select* - The mailbox to select before searching.
+* *select* - The mailbox to select before searching.  This is probably INBOX but it can be any mailbox or label accessible via the configured accounts.
 * *search* - The search to use to query messages.  This expressed in standard IMAP4 search criteria format.
 * *action* - The action to execute.  This action must exist in the *actions* subfolder.
+* *order* - (optional) The order to process the emails.  Omit it to process the emails in the order returned from the server (likely smallest message number to biggest message number). This only supports the value "newest_first" for now.
 
 # Actions
 
 Actions are defined as .py files stored in the *actions* subfolder of MailPlan.  An action can be an arbitrary Python program; the only requirement is that the .py file define an *action* function as an entry point, e.g.:
 
 ```
-def action(header, message, ops):
+def action(ops):
 	...
 ```
 
@@ -61,10 +62,55 @@ This function can perform whatever action is required based on the header and me
 * ERROR - There was an error performing the action, and the appropriate information should be logged for analysis.
 * STOP - The action indicates that the rule should stop processing (i.e. a limit or stop condition was reached).
 
+# Example Rules
+
+Move all email older than one day out of the inbox and into `[Mailplan]/To Be Filed`
+
+```
+clear_inbox.select=INBOX
+clear_inbox.search=before_today
+clear_inbox.action=move_to_label:"[Mailplan]/To Be Filed"
+```
+
+Move emails more than one day old with a List-Unsubscribe header to `[Mailplan]/Mailing Lists`
+```
+mailing_lists.select=INBOX
+mailing_lists.search=
+    before_today
+    header:'List-Unsubscribe ""'
+
+mailing_lists.action=
+    # Gmail's header search will return false positives
+    proceed_if_header_is_present:'list-unsubscribe'
+    print_message
+    count:'mailing_lists'
+    move_to_label:"[Mailplan]/Mailing Lists"
+```
+
+Move notifications for past calendar events (i.e. notifications, responses, cancellation, etc) to `[Mailplan]/To Be Deleted`
+```
+old_calendar_notifications.select=INBOX
+old_calendar_notifications.search=gmail:'(invite.ics OR invite.vcs) has:attachment'
+old_calendar_notifications.action=
+    proceed_if_past_event
+    move_to_label:"[Mailplan]/To Be Deleted"
+
+old_calendar_notifications.order=newest_first
+```
+
+Note that the move_to_label can accept any IMAP label.  These examples use a `[Mailplan]` parent label but you can change this to whatever you want.
+
 # Future Plans
 
-* Compose actions from action sequences, directly in .mailplanrc file
-* Define reusable set of actions, to use in composed action sequences
-* Multiple mailboxes per rule (currently only one mailbox is allowed in the select property)
-* Client side search validators
-* Full support for X-GM-RAW (currently supports single terms using the gmail: search but does not support composing search from individual clauses)
+- [x] Compose actions from action sequences, directly in .mailplanrc file
+  - Supported by defining multiline searches or actions.  See the examples above.
+- [-] Define reusable set of actions, to use in composed action sequences
+  - Partially implemented.  There's still a lot to do here.
+- Multiple mailboxes per rule (currently only one mailbox is allowed in the select property)
+- Selectively enable rules for each account (currently, all rules run on all accounts).
+- CLI options
+  - Select custom configuration file
+  - Run only a specific rule (whether or not its enabled)
+- Rule development workflow - hot reload, dry runs, and undoable actions to develop and test rules more easily
+- Client side search validators
+- Full support for X-GM-RAW (currently supports single terms using the gmail: search but does not support composing search from individual clauses)
