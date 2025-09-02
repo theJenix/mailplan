@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 def make_proceed_if_header_is_present(header):
     def proceed_if_header_is_present(ops: 'MessageOperations') -> ActionResult:
-        print('proceed_if_past_event')
+        print('proceed_if_header_is_present')
         message = ops.fetch()
 
         header_value = message.get(header)
